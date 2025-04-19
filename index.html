@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anime Card Game</title>
+  <style>
+    /* Layout */
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .game-area {
+      display: flex;
+      justify-content: space-between;
+      margin: 30px 0;
+      min-height: 250px;
+    }
+    
+    /* Zones */
+    .zone {
+      width: 48%;
+      border-radius: 10px;
+      padding: 15px;
+      position: relative;
+    }
+    
+    #stack-zone {
+      background: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    #field-zone {
+      background: #f0f7ff;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      border: 2px dashed #ccc;
+    }
+    
+    .zone-title {
+      margin: 5px 0;
+      color: #555;
+      font-size: 1.2em;
+    }
+    
+    /* Card Styles */
+    .card-container {
+      width: 100px;
+      height: 150px;
+      perspective: 1000px;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    /* Stack-specific styles */
+    #stack {
+      position: relative;
+      width: 110px;
+      height: 160px;
+      margin: 0 auto 10px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+    }
+    
+    .stack-card {
+      position: absolute;
+      top: 0;
+      left: 5px;
+    }
+    
+    /* Field-specific styles */
+    .field-card {
+      margin: 5px;
+    }
+    
+    .card {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.6s;
+    }
+    
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      border: 2px solid #333;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    .card-front {
+      background: white;
+      font-weight: bold;
+      font-size: 24px;
+    }
+    
+    .card-back {
+      background: #2c3e50;
+      color: white;
+      transform: rotateY(180deg);
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card-back::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+    }
+    
+    .card-back::after {
+      content: 'ANIME';
+      position: absolute;
+      font-size: 14px;
+      color: white;
+      text-shadow: 0 0 5px rgba(0,0,0,0.8);
+      bottom: 5px;
+      right: 5px;
+      font-weight: bold;
+    }
+    
+    .flipped {
+      transform: rotateY(180deg);
+    }
+
+    /* Animations */
+    @keyframes newCard {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .new-card {
+      animation: newCard 0.3s ease-out;
+    }
+    
+    @keyframes toField {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(var(--tx), var(--ty)) scale(1); }
+    }
+    
+    .moving-to-field {
+      animation: toField 0.4s ease-out forwards;
+      z-index: 1000;
+    }
+
+    /* Controls */
+    .controls {
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 8px 16px;
+      margin: 0 5px;
+      cursor: pointer;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      background: #1a2a3a;
+    }
+    
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    /* Debug */
+    #debug-console {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 20px;
+      font-family: monospace;
+      display: inline-block;
+      min-width: 300px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Anime Card Game</h1>
+    <p>Stacked deck ↔ Spread field</p>
+  </header>
+
+  <div class="game-area">
+    <!-- Stack Zone -->
+    <div class="zone" id="stack-zone">
+      <div id="stack"></div>
+      <h2 class="zone-title">Stack</h2>
+    </div>
+    
+    <!-- Field Zone -->
+    <div class="zone" id="field-zone">
+      <h2 class="zone-title">Field</h2>
+    </div>
+  </div>
+
+  <!-- Control Buttons -->
+  <div class="controls">
+    <button id="add-card-btn">Add Card</button>
+    <button id="remove-card-btn" disabled>Remove Card</button>
+    <button id="flip-all-field-btn" disabled>Flip Field Cards</button>
+    <button id="shuffle-stack-btn" disabled>Shuffle Stack</button>
+    <button id="reset-btn" disabled>Reset All</button>
+  </div>
+
+  <!-- Debug Area -->
+  <aside>
+    <pre id="debug-console">[System Ready]
+Stack Cards: 0
+Field Cards: 0
+Last Action: None</pre>
+  </aside>
+
+  <script>
+    // Anime character images (using placeholder service with anime-style images)
+    const animeCharacters = [
+        'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT2yB8Mo9iN46Za2xVigt99fxmvERQ6CYneLg&s'
+    ];
+
+    // DOM Elements
+    const stack = document.getElementById('stack');
+    const fieldZone = document.getElementById('field-zone');
+    const debugConsole = document.getElementById('debug-console');
+    const addBtn = document.getElementById('add-card-btn');
+    const removeBtn = document.getElementById('remove-card-btn');
+    const flipFieldBtn = document.getElementById('flip-all-field-btn');
+    const shuffleStackBtn = document.getElementById('shuffle-stack-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    
+    // State
+    let stackCards = [];
+    let fieldCards = [];
+    let cardCounter = 0;
+    let zIndex = 1;
+
+    // Add Card to Stack
+    addBtn.addEventListener('click', () => {
+      cardCounter++;
+      const card = createCard(cardCounter);
+      card.classList.add('new-card', 'stack-card');
+      card.style.zIndex = zIndex++;
+      
+      stack.appendChild(card);
+      stackCards.push(card);
+      
+      setTimeout(() => {
+        card.classList.remove('new-card');
+      }, 300);
+      
+      updateButtonStates();
+      updateDebugConsole(`Card ${cardCounter} added to stack`);
+    });
+
+    // Remove Card from Stack (to field)
+    removeBtn.addEventListener('click', () => {
+      if (stackCards.length > 0) {
+        const card = stackCards.pop();
+        moveCardToField(card);
+        updateDebugConsole(`Card moved to field`);
+      }
+    });
+
+    // Click Stack Card (move to field)
+    stack.addEventListener('click', (e) => {
+      const cardContainer = e.target.closest('.card-container');
+      if (cardContainer && stackCards.includes(cardContainer)) {
+        stackCards = stackCards.filter(c => c !== cardContainer);
+        moveCardToField(cardContainer);
+        updateDebugConsole(`Card ${cardContainer.dataset.cardId} moved to field`);
+      }
+    });
+
+    // Click Field Card (flip it)
+    fieldZone.addEventListener('click', (e) => {
+      const cardContainer = e.target.closest('.card-container');
+      if (cardContainer && fieldCards.includes(cardContainer)) {
+        const cardElement = cardContainer.querySelector('.card');
+        cardElement.classList.toggle('flipped');
+        updateDebugConsole(`Field card ${cardContainer.dataset.cardId} flipped`);
+      }
+    });
+
+    // Flip All Field Cards
+    flipFieldBtn.addEventListener('click', () => {
+      fieldCards.forEach(card => {
+        card.querySelector('.card').classList.toggle('flipped');
+      });
+      updateDebugConsole(`All field cards flipped`);
+    });
+
+    // Shuffle Stack
+    shuffleStackBtn.addEventListener('click', () => {
+      // Fisher-Yates shuffle
+      for (let i = stackCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [stackCards[i], stackCards[j]] = [stackCards[j], stackCards[i]];
+      }
+      
+      // Reorder DOM elements
+      stackCards.forEach((card, index) => {
+        card.style.zIndex = index + 1;
+        stack.appendChild(card);
+      });
+      
+      updateDebugConsole(`Stack shuffled`);
+    });
+
+    // Reset All
+    resetBtn.addEventListener('click', () => {
+      // Move all field cards back to stack
+      while (fieldCards.length > 0) {
+        const card = fieldCards.pop();
+        card.style.transform = '';
+        card.classList.remove('moving-to-field', 'field-card');
+        card.classList.add('stack-card');
+        card.style.zIndex = zIndex++;
+        stack.appendChild(card);
+        stackCards.push(card);
+      }
+      
+      // Reset all cards to face-down
+      document.querySelectorAll('.card').forEach(card => {
+        card.classList.remove('flipped');
+      });
+      
+      updateDebugConsole(`All cards reset to stack`);
+    });
+
+    // Helper: Create a new card with anime back
+    function createCard(id) {
+      const card = document.createElement('div');
+      card.className = 'card-container';
+      card.dataset.cardId = id;
+      
+      // Random anime character
+      const randomAnime = animeCharacters[Math.floor(Math.random() * animeCharacters.length)];
+      
+      card.innerHTML = `
+        <div class="card">
+          <div class="card-face card-front">${id}</div>
+          <div class="card-face card-back" style="background-image: url('${randomAnime}')"></div>
+        </div>
+      `;
+      
+      return card;
+    }
+
+    // Helper: Move card to field
+    function moveCardToField(card) {
+      card.classList.remove('stack-card');
+      card.classList.add('field-card', 'moving-to-field');
+      
+      // Calculate random position in field
+      const fieldRect = fieldZone.getBoundingClientRect();
+      const maxX = fieldRect.width - 110;
+      const maxY = fieldRect.height - 160;
+      
+      const targetX = Math.random() * maxX;
+      const targetY = Math.random() * maxY;
+      
+      card.style.setProperty('--tx', `${targetX}px`);
+      card.style.setProperty('--ty', `${targetY}px`);
+      
+      setTimeout(() => {
+        card.classList.remove('moving-to-field');
+        fieldZone.appendChild(card);
+      }, 400);
+      
+      fieldCards.push(card);
+      updateButtonStates();
+    }
+
+    // Helper: Update button states
+    function updateButtonStates() {
+      removeBtn.disabled = stackCards.length <= 0;
+      flipFieldBtn.disabled = fieldCards.length <= 0;
+      shuffleStackBtn.disabled = stackCards.length <= 1;
+      resetBtn.disabled = (stackCards.length + fieldCards.length) <= 0;
+      
+      // Update debug console counts
+      const lines = debugConsole.textContent.split('\n');
+      lines[1] = `Stack Cards: ${stackCards.length}`;
+      lines[2] = `Field Cards: ${fieldCards.length}`;
+      debugConsole.textContent = lines.join('\n');
+    }
+
+    // Helper: Update debug console
+    function updateDebugConsole(action) {
+      const lines = debugConsole.textContent.split('\n');
+      lines[3] = `Last Action: ${action}`;
+      debugConsole.textContent = lines.join('\n');
+    }
+  </script>
+</body>
+</html>
